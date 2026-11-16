@@ -6,3 +6,6 @@ inspo/
 
 # macOS
 .DS_Store
+
+# Lokale notater til neste økt
+HANDOFF.md
