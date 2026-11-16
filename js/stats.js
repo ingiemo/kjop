@@ -75,3 +75,21 @@ export function savedPerMonth(items, count = 6, now = new Date()) {
   }
   return out;
 }
+
+// ---------- Sikkerhetskopi ----------
+
+export const EXPORT_EVERY_DAYS = 30;
+
+/** Sant når det finnes data og det er over 30 dager siden siste eksport. */
+export function exportStale(items, settings, now = new Date()) {
+  if (!items.length) return false;
+  const last = settings.lastExport ? new Date(settings.lastExport) : null;
+  return !last || now - last > EXPORT_EVERY_DAYS * DAY;
+}
+
+/** Som exportStale, men respekterer «Senere» (utsatt noen dager). */
+export function exportReminderDue(items, settings, now = new Date()) {
+  if (!exportStale(items, settings, now)) return false;
+  const snoozed = settings.exportSnoozedUntil ? new Date(settings.exportSnoozedUntil) : null;
+  return !snoozed || snoozed <= now;
+}

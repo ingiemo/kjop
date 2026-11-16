@@ -4,8 +4,8 @@ import { store, uid } from '../store.js';
 import { esc, kr, formatInput, formatTyping, parseNum, dateLong } from '../format.js';
 import { openSheet, closeSheet, toast } from '../ui.js';
 import { lifeOptions, freqOptions } from './shared.js';
+import { exportStale } from '../stats.js';
 
-const DAY = 864e5;
 let el;
 
 export function mount(root) {
@@ -145,7 +145,7 @@ function render() {
     </button>`).join('');
 
   const last = s.lastExport ? new Date(s.lastExport) : null;
-  const stale = store.items.length && (!last || Date.now() - last.getTime() > 30 * DAY);
+  const stale = exportStale(store.items, s);
   const lastEl = el.querySelector('#s-last');
   lastEl.textContent = last ? `Sist eksportert ${dateLong(last)}.` : 'Ikke eksportert ennå.';
   lastEl.classList.toggle('warn', Boolean(stale));
@@ -244,7 +244,7 @@ function openCategoryEditor(cat) {
 
 // ---------- Eksport / import ----------
 
-async function exportData() {
+export async function exportData() {
   const d = new Date();
   const stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const name = `kjop-eller-dropp-${stamp}.json`;

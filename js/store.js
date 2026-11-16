@@ -34,6 +34,7 @@ function fresh() {
     // Nye standardkategorier legges til én gang; sletter du en, kommer den ikke tilbake.
     settings: {
       hourlyWage: null, treatBudget: null, lastExport: null, knownDefaults: [...DEFAULT_IDS],
+      exportSnoozedUntil: null, // «Senere» på eksportpåminnelsen
       waitDays: 30, // tenketid for «Lagre til senere»
       goal: null,   // sparemål: { name, amount, startAt }
     },
@@ -67,6 +68,8 @@ function normalize(d) {
   const items = (Array.isArray(d.items) ? d.items : []).map(cleanItem).filter(Boolean);
   settings.waitDays = [7, 14, 30].includes(Number(settings.waitDays)) ? Number(settings.waitDays) : 30;
   settings.goal = cleanGoal(settings.goal);
+  settings.lastExport = isoOrNull(settings.lastExport);
+  settings.exportSnoozedUntil = isoOrNull(settings.exportSnoozedUntil);
   return { version: 1, settings, categories, items };
 }
 
@@ -227,7 +230,7 @@ export const store = {
   },
 
   markExported() {
-    state.settings = { ...state.settings, lastExport: new Date().toISOString() };
+    state.settings = { ...state.settings, lastExport: new Date().toISOString(), exportSnoozedUntil: null };
     commit();
   },
 

@@ -591,6 +591,24 @@ input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; border-radius
   font-weight: 700;
 }
 
+/* ---------- Eksportpåminnelse ---------- */
+.notice {
+  display: flex; flex-direction: column; gap: 10px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.notice[hidden] { display: none; }
+.notice p { margin: 0; font-size: 15px; line-height: 1.4; }
+.notice p b { display: block; }
+.notice p span { color: var(--muted); font-size: 14px; }
+.notice-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.notice-actions .btn { min-height: 40px; padding: 0 16px; }
+
 /* ---------- Toast ---------- */
 #toast {
   position: fixed; left: 50%; z-index: 30;

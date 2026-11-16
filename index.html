@@ -22,6 +22,13 @@
 </head>
 <body>
   <main id="views">
+    <div id="backup" class="notice" role="status" hidden>
+      <p><b>Ta en sikkerhetskopi</b><span id="backup-why"></span></p>
+      <div class="notice-actions">
+        <button type="button" class="btn btn--ghost" id="backup-later">Senere</button>
+        <button type="button" class="btn" id="backup-now">Eksporter</button>
+      </div>
+    </div>
     <section class="view" id="view-kalkulator" hidden></section>
     <section class="view" id="view-sammenlign" hidden></section>
     <section class="view" id="view-lagret" hidden></section>

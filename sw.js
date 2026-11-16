@@ -1,7 +1,7 @@
 // Service worker: lagrer alle filene så appen virker uten nett.
 // VIKTIG: Øk VERSION hver gang du publiserer endringer, ellers får ikke telefonen dem.
 
-const VERSION = 'v2';
+const VERSION = 'v4';
 const CACHE = `kjop-eller-dropp-${VERSION}`;
 
 const FILES = [

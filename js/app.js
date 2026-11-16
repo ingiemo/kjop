@@ -1,7 +1,7 @@
 // Oppstart, fanebytte og merke på Lagret-fanen når tenketid er over.
 
 import { store } from './store.js';
-import { dueItems } from './stats.js';
+import { dueItems, exportReminderDue, EXPORT_EVERY_DAYS, addDays } from './stats.js';
 import * as kalkulator from './views/kalkulator.js';
 import * as sammenlign from './views/sammenlign.js';
 import * as lagret from './views/lagret.js';
@@ -60,12 +60,31 @@ window.addEventListener('hashchange', show);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible') return;
   updateBadge();
+  updateBackupNotice();
   const current = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'kalkulator';
   if (mounted.has(current)) VIEWS[current].show?.();
 });
+// ---------- Eksportpåminnelse ----------
+// iOS kan rydde bort data fra nettsider som ikke er brukt på en stund. Mas litt når kopien er gammel.
+function updateBackupNotice() {
+  const box = document.getElementById('backup');
+  const due = exportReminderDue(store.items, store.settings);
+  box.hidden = !due;
+  if (!due) return;
+  document.getElementById('backup-why').textContent = store.settings.lastExport
+    ? `Det er over ${EXPORT_EVERY_DAYS} dager siden sist.`
+    : 'Dataene finnes bare på denne telefonen.';
+}
+document.getElementById('backup-now').addEventListener('click', () => innstillinger.exportData());
+document.getElementById('backup-later').addEventListener('click', () => {
+  store.updateSettings({ exportSnoozedUntil: addDays(7) });
+});
+
 store.subscribe(updateBadge);
+store.subscribe(updateBackupNotice);
 show();
 updateBadge();
+updateBackupNotice();
 
 // ---------- Offline (service worker) ----------
 // Ikke på localhost under utvikling (da ville gamle filer ligge i cachen), med mindre ?sw står i adressen.
