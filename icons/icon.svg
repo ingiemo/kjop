@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Kjøp eller dropp: prislapp med deletegn (pris ÷ antall bruk). Full flate, iOS runder hjørnene selv. -->
+  <rect width="1024" height="1024" fill="#b5502a"/>
+  <path d="M420 340 H748 Q796 340 796 388 V636 Q796 684 748 684 H420 L248 512 Z"
+        fill="#fffaf3" stroke="#fffaf3" stroke-width="40" stroke-linejoin="round"/>
+  <circle cx="352" cy="512" r="30" fill="#b5502a"/>
+  <rect x="500" y="490" width="216" height="44" rx="22" fill="#b5502a"/>
+  <circle cx="608" cy="414" r="32" fill="#b5502a"/>
+  <circle cx="608" cy="610" r="32" fill="#b5502a"/>
+</svg>

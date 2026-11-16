@@ -1,0 +1,8 @@
+# Skjermbilder av en annen app – skal ikke i et offentlig repo
+inspo/
+
+# Lokale Claude-filer (innstillinger og tillatelser)
+.claude/
+
+# macOS
+.DS_Store
