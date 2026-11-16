@@ -44,6 +44,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -563,6 +564,7 @@ input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; border-radius
 .usage-num b { font-size: 40px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; }
 .usage-num small { color: var(--muted); font-size: 13px; margin-top: 4px; }
 .stats--tight > div { background: var(--surface-2); border-color: transparent; }
+.stats .wide { grid-column: 1 / -1; }
 
 .seg--3 { grid-template-columns: repeat(3, 1fr); margin-top: 0; }
 .meter--goal span { background: var(--kjop); }

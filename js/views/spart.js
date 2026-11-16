@@ -2,7 +2,7 @@
 
 import { store } from '../store.js';
 import { esc, kr, num, hoursText, workdayText } from '../format.js';
-import { actualCpu } from '../calc.js';
+import { actualCpu, altPerUse } from '../calc.js';
 import { split, sumPrice, periodStart, savedPerMonth, treatUsedThisMonth, monthName, goalProgress } from '../stats.js';
 import { displayName, evalItem } from './shared.js';
 import { openItemEditor } from './itemform.js';
@@ -48,6 +48,10 @@ function insights() {
   if (used.length) {
     const best = used.reduce((a, b) => (actualCpu(a) <= actualCpu(b) ? a : b));
     out.push(`Beste kjøp så langt: <b>${esc(displayName(best, store.category(best.categoryId)))}</b>, ${kr(actualCpu(best))} per bruk`);
+  }
+  const altSaved = bought.reduce((s, i) => s + altPerUse(i) * (i.actualUses || 0), 0);
+  if (altSaved > 0) {
+    out.push(`Ting du har kjøpt har spart deg <b>${kr(altSaved)}</b> i alternativkostnader så langt`);
   }
   const waited = items.filter((i) => i.waited && i.status !== 'saved');
   if (waited.length) {

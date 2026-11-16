@@ -1,11 +1,11 @@
 // Ark for å redigere eller slette en lagret ting.
 
 import { store } from '../store.js';
-import { evaluate, FREQ, VERDICT, expectedUsesSoFar, actualCpu } from '../calc.js';
+import { evaluate, FREQ, VERDICT, expectedUsesSoFar, actualCpu, altPerUse } from '../calc.js';
 import { esc, kr, num, parseNum, formatTyping, formatInput } from '../format.js';
 import { openSheet, closeSheet, toast } from '../ui.js';
 import { addDays } from '../stats.js';
-import { STATUS_LABEL, statusKey, lifeOptions, freqOptions, categoryOptions, displayName } from './shared.js';
+import { STATUS_LABEL, statusKey, lifeOptions, freqOptions, categoryOptions, shareOptions, displayName } from './shared.js';
 
 /** Faktisk bruk sammenlignet med anslaget så langt. */
 function usageHtml(it) {
@@ -27,8 +27,10 @@ function usageHtml(it) {
       <button type="button" class="step step--accent" data-use="1" aria-label="Én bruk til">+</button>
     </div>
     <dl class="stats stats--tight">
-      <div><dt>Per bruk nå</dt><dd>${now != null ? kr(now) : '–'}</dd><small>anslått ${kr(r.cpu)} totalt</small></div>
+      <div><dt>Per bruk nå</dt><dd>${now != null ? kr(now) : '–'}</dd><small>anslått ${kr(r.grossCpu)} totalt</small></div>
       <div><dt>Anslått så langt</dt><dd>${num(expected)} bruk</dd><small>av ${num(r.uses)} i hele levetiden</small></div>
+      ${r.alt > 0 ? `<div class="wide"><dt>Spart mot alternativet så langt</dt><dd>${kr(actual * r.alt)}</dd>
+        <small>${actual * r.alt >= r.net ? 'Kjøpet har tjent seg inn 🎉' : `${kr(r.net - actual * r.alt)} igjen til det har tjent seg inn`}</small></div>` : ''}
     </dl>
     ${trend ? `<p class="note" style="margin-top:10px">${trend}</p>` : ''}`;
 }
@@ -60,6 +62,9 @@ export function openItemEditor(item) {
         <span class="num-input"><input id="e-times" inputmode="numeric" placeholder="1" value="${item.times || ''}" autocomplete="off"><span>×</span></span></label>
       <label class="row-field"><span>FINN-verdi</span>
         <span class="num-input"><input id="e-resale" inputmode="decimal" placeholder="0" value="${formatInput(item.resale)}" autocomplete="off"><span>kr</span></span></label>
+      <label class="row-field"><span>Alternativet koster<small>Per gang</small></span>
+        <span class="num-input"><input id="e-alt" inputmode="decimal" placeholder="0" value="${formatInput(item.altCost)}" autocomplete="off"><span>kr</span></span></label>
+      <label class="row-field"><span>Erstatter det</span><select id="e-share" class="select">${shareOptions(item.altShare ?? 1)}</select></label>
     </div>
 
     <h3 class="section-title">Status</h3>
@@ -86,6 +91,8 @@ export function openItemEditor(item) {
         lifespanMonths: Number($('#e-life').value),
         frequency: $('#e-freq').value,
         times: Number($('#e-times').value) || null,
+        altCost: parseNum($('#e-alt').value),
+        altShare: Number($('#e-share').value),
       });
 
       const update = () => {
@@ -96,17 +103,20 @@ export function openItemEditor(item) {
         const p = $('#e-preview');
         p.className = `preview v-${r.verdict}`;
         p.innerHTML = f.price > 0
-          ? `<span class="pill">${VERDICT[r.verdict].label}</span><b>${kr(r.cpu)}</b><span class="muted">per bruk</span>`
+          ? `<span class="pill">${VERDICT[r.verdict].label}</span>${r.pays
+            ? `<b>Sparer ${kr(-r.cpu)}</b><span class="muted">per bruk</span>`
+            : `<b>${kr(r.cpu)}</b><span class="muted">per bruk</span>`}`
           : '<span class="muted">Legg inn en pris</span>';
+        $('#e-share').closest('.row-field').hidden = !(f.altCost > 0);
       };
 
-      ['#e-price', '#e-resale'].forEach((s) => $(s).addEventListener('input', (e) => {
+      ['#e-price', '#e-resale', '#e-alt'].forEach((s) => $(s).addEventListener('input', (e) => {
         e.target.value = formatTyping(e.target.value); update();
       }));
       $('#e-times').addEventListener('input', (e) => {
         e.target.value = e.target.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 4); update();
       });
-      ['#e-name', '#e-cat', '#e-life', '#e-freq'].forEach((s) => $(s).addEventListener('input', update));
+      ['#e-name', '#e-cat', '#e-life', '#e-freq', '#e-share'].forEach((s) => $(s).addEventListener('input', update));
 
       $('#e-status').addEventListener('click', (e) => {
         const b = e.target.closest('[data-s]');

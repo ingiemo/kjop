@@ -49,39 +49,66 @@ export function verdictFor(cpu, category) {
   return 'tenk';
 }
 
+export const ALT_SHARES = [[1, 'Alltid'], [0.75, '¾'], [0.5, 'Halvparten'], [0.25, '¼']];
+
 /**
- * input: { price, resale, lifespanMonths, frequency, times }
+ * Alternativkost i snitt per bruk: hva du ellers ville betalt (f.eks. buss 46 kr),
+ * ganget med hvor stor andel av gangene kjøpet faktisk erstatter alternativet.
+ * Ganger du ellers ville gått eller latt være, sparer ingenting – men teller som bruk.
+ */
+export function altPerUse(input) {
+  const cost = Math.max(0, input.altCost || 0);
+  const share = input.altShare > 0 && input.altShare <= 1 ? input.altShare : 1;
+  return cost * share;
+}
+
+/** Når (bruk nr. `needed`) blir det nådd, gitt frekvensen? */
+function whenUses(needed, uses, input, today) {
+  if (needed > uses) return { kind: 'never', needed };
+  if (input.frequency === 'once') return { kind: 'uses', needed };
+  const months = needed / usesPerMonth(input.frequency, input.times);
+  const date = new Date(today);
+  date.setDate(date.getDate() + Math.ceil(months * DAYS_PER_MONTH));
+  return { kind: 'date', needed, date };
+}
+
+/**
+ * input: { price, resale, lifespanMonths, frequency, times, altCost, altShare }
  * category: { buyBelow, dropAbove }
+ * cpu er kostnad per bruk *etter* alternativkost (kan bli negativ = du sparer penger).
+ * grossCpu er ren kostnad per bruk uten alternativ.
  */
 export function evaluate(input, category, hourlyWage, today = new Date()) {
   const price = Math.max(0, input.price || 0);
   const resale = Math.min(price, Math.max(0, input.resale || 0));
   const net = price - resale;
   const uses = totalUses(input);
-  const cpu = net / uses;
+  const grossCpu = net / uses;
+  const alt = altPerUse(input);
+  const cpu = grossCpu - alt;
+  const pays = alt > 0 && cpu <= 0;
   const verdict = verdictFor(cpu, category);
   const perMonth = input.lifespanMonths > 0 ? net / input.lifespanMonths : null;
 
-  // Når passerer kostnad per bruk Kjøp-grensen? Trenger flere enn net / grense bruk.
+  // «Verdt det fra»: når netto kostnad per bruk går under Kjøp-grensen.
+  // net / n − alt < grense  ⇔  n > net / (grense + alt)
   let worth;
   if (net === 0) {
     worth = { kind: 'now' };
-  } else if (!(category.buyBelow > 0)) {
+  } else if (!(category.buyBelow + alt > 0)) {
     worth = { kind: 'never' };
   } else {
-    const needed = Math.floor(net / category.buyBelow) + 1;
-    if (needed > uses) {
-      worth = { kind: 'never', needed };
-    } else if (input.frequency === 'once') {
-      worth = { kind: 'uses', needed };
-    } else {
-      const months = needed / usesPerMonth(input.frequency, input.times);
-      const date = new Date(today);
-      date.setDate(date.getDate() + Math.ceil(months * DAYS_PER_MONTH));
-      worth = { kind: 'date', needed, date };
-    }
+    worth = whenUses(Math.floor(net / (category.buyBelow + alt)) + 1, uses, input, today);
+  }
+
+  // «Tjent inn»: når sparte alternativkostnader har dekket prisen.
+  let payback = null;
+  let lifetimeSaving = null;
+  if (alt > 0) {
+    payback = net === 0 ? { kind: 'now' } : whenUses(Math.ceil(net / alt), uses, input, today);
+    lifetimeSaving = uses * alt - net;
   }
 
   const hours = hourlyWage > 0 ? price / hourlyWage : null;
-  return { price, resale, net, uses, cpu, verdict, perMonth, worth, hours };
+  return { price, resale, net, uses, cpu, grossCpu, alt, pays, verdict, perMonth, worth, payback, lifetimeSaving, hours };
 }

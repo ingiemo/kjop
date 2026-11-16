@@ -1,7 +1,7 @@
 // Biter som brukes i flere faner.
 
 import { store } from '../store.js';
-import { evaluate, FREQ, VERDICT, actualCpu } from '../calc.js';
+import { evaluate, FREQ, VERDICT, actualCpu, altPerUse, ALT_SHARES } from '../calc.js';
 import { esc, kr, formatInput, lifespanText } from '../format.js';
 import { isDue, daysLeft, goalProgress } from '../stats.js';
 import { toast } from '../ui.js';
@@ -39,7 +39,7 @@ export function itemRow(it, { showStatus = true, plus = false } = {}) {
         <span class="item-name">${esc(displayName(it, cat))}</span>
         <span class="item-meta">${esc(`${cat.name} · ${kr(it.price)}${used}`)}${showStatus ? ` ${statusTag(it)}` : ''}</span>
       </span>
-      <span class="item-cpu"><b>${kr(r.cpu)}</b><small>${VERDICT[r.verdict].label}</small></span>
+      <span class="item-cpu"><b>${r.pays ? `Sparer ${kr(-r.cpu)}` : kr(r.cpu)}</b><small>${VERDICT[r.verdict].label}</small></span>
     </button>`;
   if (!plus || it.status !== 'bought') return row;
   return `<div class="item-wrap">${row}
@@ -51,7 +51,10 @@ export function registerUse(id) {
   const it = store.addUse(id, 1);
   if (!it) return;
   const cat = store.category(it.categoryId);
-  toast(`${displayName(it, cat)}: ${it.actualUses} bruk · ${kr(actualCpu(it))} per bruk nå`);
+  const saved = altPerUse(it) * it.actualUses;
+  toast(saved > 0
+    ? `${displayName(it, cat)}: ${it.actualUses} bruk · ${kr(saved)} spart mot alternativet`
+    : `${displayName(it, cat)}: ${it.actualUses} bruk · ${kr(actualCpu(it))} per bruk nå`);
 }
 
 /** Melding etter at noe er droppet, med sparemål hvis det finnes. */
@@ -68,6 +71,9 @@ export const lifeOptions = (selected) => Array.from({ length: 121 }, (_, m) =>
 
 export const freqOptions = (selected) => Object.entries(FREQ).map(([k, f]) =>
   `<option value="${k}"${k === selected ? ' selected' : ''}>${f.label}</option>`).join('');
+
+export const shareOptions = (selected) => ALT_SHARES.map(([v, l]) =>
+  `<option value="${v}"${v === selected ? ' selected' : ''}>${l}</option>`).join('');
 
 export const categoryOptions = (selected) => store.categories.map((c) =>
   `<option value="${esc(c.id)}"${c.id === selected ? ' selected' : ''}>${esc(c.emoji)} ${esc(c.name)}</option>`).join('');

@@ -1,7 +1,7 @@
 // Kalkulator: pris, navn, kategori, levetid, frekvens, FINN-verdi -> resultat.
 
 import { store, uid } from '../store.js';
-import { evaluate, FREQ, VERDICT } from '../calc.js';
+import { evaluate, FREQ, VERDICT, ALT_SHARES } from '../calc.js';
 import { kr, num, parseNum, formatTyping, dateLong, lifespanText, hoursText, workdayText, esc } from '../format.js';
 import { openSheet, closeSheet, toast } from '../ui.js';
 import { guessCategory } from '../guess.js';
@@ -23,7 +23,7 @@ function defaultCategoryId() {
 function freshState() {
   const cat = store.category(defaultCategoryId());
   return {
-    price: 0, name: '', resale: 0, times: 0,
+    price: 0, name: '', resale: 0, times: 0, altCost: 0, altShare: 1,
     lifespanMonths: cat?.defLife ?? 24, frequency: cat?.defFreq ?? 'weekly',
     touchedLife: false, touchedFreq: false,
     categoryId: defaultCategoryId(), categoryMode: 'default',
@@ -100,6 +100,20 @@ export function mount(root) {
         <span>Kan selges brukt for<small>FINN-verdi, trekkes fra prisen</small></span>
         <span class="num-input"><input id="c-resale" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done"><span>kr</span></span>
       </label>
+
+      <hr>
+
+      <label class="row-field">
+        <span>Alternativet koster<small>Per gang, f.eks. en bussbillett. Tomt = ingen</small></span>
+        <span class="num-input"><input id="c-alt" inputmode="decimal" placeholder="0" autocomplete="off" enterkeyhint="done"><span>kr</span></span>
+      </label>
+      <div id="c-alt-more" hidden>
+        <p class="hint" style="margin:4px 0 8px">Hvor ofte erstatter det alternativet? Resten av gangene ville du gått, latt være eller lignende.</p>
+        <div class="seg seg--4" id="c-alt-share" role="radiogroup" aria-label="Hvor ofte erstatter det alternativet">
+          ${ALT_SHARES.map(([v, l]) => `<button type="button" role="radio" data-share="${v}">${l}</button>`).join('')}
+        </div>
+        <p class="hint" id="c-alt-sum" style="margin:8px 0 0"></p>
+      </div>
     </div>
 
     <button type="button" class="primary" id="c-go" disabled>Er det verdt det?</button>
@@ -160,6 +174,20 @@ export function mount(root) {
     state.resale = parseNum(resale.value);
   });
 
+  // Alternativkost
+  const alt = $('#c-alt');
+  alt.addEventListener('input', () => {
+    alt.value = formatTyping(alt.value);
+    state.altCost = parseNum(alt.value);
+    syncAlt();
+  });
+  $('#c-alt-share').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-share]');
+    if (!b) return;
+    state.altShare = Number(b.dataset.share);
+    syncAlt();
+  });
+
   $('#c-go').addEventListener('click', showResult);
 
   store.subscribe(() => {
@@ -178,6 +206,8 @@ function syncAll() {
   $('#c-name').value = state.name;
   $('#c-times').value = state.times || '';
   $('#c-resale').value = state.resale ? formatTyping(String(state.resale).replace('.', ',')) : '';
+  $('#c-alt').value = state.altCost ? formatTyping(String(state.altCost).replace('.', ',')) : '';
+  syncAlt();
   sizePrice();
   renderChips(true);
   syncLife();
@@ -239,7 +269,34 @@ function syncFreq() {
     : `${FREQ[state.frequency].per[0].toUpperCase()}${FREQ[state.frequency].per.slice(1)} (tom = 1)`;
 }
 
+function syncAlt() {
+  const on = state.altCost > 0;
+  $('#c-alt-more').hidden = !on;
+  el.querySelectorAll('[data-share]').forEach((b) =>
+    b.setAttribute('aria-checked', String(Number(b.dataset.share) === state.altShare)));
+  $('#c-alt-sum').textContent = on
+    ? `Det betyr ${kr(state.altCost * state.altShare)} spart per gang i snitt.`
+    : '';
+}
+
 // ---------- Resultat ----------
+
+function paybackText(r) {
+  const p = r.payback;
+  if (!p) return null;
+  if (p.kind === 'now') return { main: 'Med en gang', sub: '' };
+  if (p.kind === 'uses') return { main: `Etter ${num(p.needed)} bruk`, sub: '' };
+  if (p.kind === 'date') return { main: dateLong(p.date), sub: `etter ${num(p.needed)} bruk` };
+  return { main: 'Ikke innen levetiden', sub: `trenger ${num(p.needed)} bruk, får ${num(r.uses)}` };
+}
+
+function altNote(r) {
+  if (!(r.alt > 0)) return '';
+  const label = ALT_SHARES.find(([v]) => v === state.altShare)?.[1] ?? 'Alltid';
+  const how = state.altShare === 1 ? 'hver gang' : `${label.toLowerCase()} av gangene`;
+  return `<p class="note">Regnet med at det erstatter et alternativ til ${kr(state.altCost)} ${how}
+    (${kr(r.alt)} per bruk i snitt). Uten alternativet: ${kr(r.grossCpu)} per bruk.</p>`;
+}
 
 function worthText(r) {
   const w = r.worth;
@@ -251,6 +308,7 @@ function worthText(r) {
 }
 
 function whyText(r, cat) {
+  if (r.pays) return `Billigere enn alternativet: du sparer ${kr(-r.cpu)} per bruk i snitt.`;
   if (r.verdict === 'kjop') return `Under kjøpsgrensen på ${kr(cat.buyBelow)} per bruk for ${cat.name}.`;
   if (r.verdict === 'dropp') return `Over droppgrensen på ${kr(cat.dropAbove)} per bruk for ${cat.name}.`;
   return `Mellom ${kr(cat.buyBelow)} og ${kr(cat.dropAbove)} per bruk for ${cat.name}.`;
@@ -292,6 +350,7 @@ function showResult() {
   const r = evaluate(state, cat, wage);
   const v = VERDICT[r.verdict];
   const worth = worthText(r);
+  const payback = paybackText(r);
   const title = state.name.trim() || `${cat.emoji} ${cat.name}`;
 
   const hoursCell = r.hours != null
@@ -306,19 +365,23 @@ function showResult() {
 
     <div class="verdict verdict--${r.verdict}">
       <span class="badge">${v.label}</span>
-      <span class="cpu-num">${kr(r.cpu)}</span>
-      <span class="cpu-lbl">per bruk</span>
+      <span class="cpu-num">${r.pays ? `Sparer ${kr(-r.cpu)}` : kr(r.cpu)}</span>
+      <span class="cpu-lbl">${r.pays ? 'per bruk mot alternativet' : r.alt > 0 ? 'per bruk etter alternativet' : 'per bruk'}</span>
       <p class="verdict-why">${esc(whyText(r, cat))}</p>
     </div>
 
     <dl class="stats">
       <div><dt>Bruk totalt</dt><dd>${num(r.uses)}</dd><small>${esc(freqSummary())}, ${esc(lifespanText(state.lifespanMonths))}</small></div>
       <div><dt>Per måned</dt><dd>${r.perMonth != null ? kr(r.perMonth) : '–'}</dd><small>${r.perMonth != null ? 'over levetiden' : 'levetid er 0'}</small></div>
-      <div><dt>Verdt det fra</dt><dd class="sm">${esc(worth.main)}</dd><small>${esc(worth.sub)}</small></div>
-      <div><dt>Arbeidstid</dt>${hoursCell}</div>
+      ${payback ? `
+      <div><dt>Tjent inn</dt><dd class="sm">${esc(payback.main)}</dd><small>${esc(payback.sub)}</small></div>
+      <div><dt>${r.lifetimeSaving >= 0 ? 'Spart over levetiden' : 'Taper over levetiden'}</dt><dd>${kr(Math.abs(r.lifetimeSaving))}</dd><small>mot alternativet</small></div>` : ''}
+      ${payback ? '' : `<div><dt>Verdt det fra</dt><dd class="sm">${esc(worth.main)}</dd><small>${esc(worth.sub)}</small></div>`}
+      <div${payback ? ' class="wide"' : ''}><dt>Arbeidstid</dt>${hoursCell}</div>
     </dl>
 
     ${r.resale > 0 ? `<p class="note">Regnet med ${kr(r.net)}: pris ${kr(r.price)} minus ${kr(r.resale)} fra FINN.</p>` : ''}
+    ${altNote(r)}
 
     <div class="actions">
       <button type="button" class="btn ${r.verdict === 'kjop' ? 'is-suggested' : ''}" data-act="bought">Jeg kjøpte det</button>
@@ -347,6 +410,8 @@ function record(action, r, cat) {
     name: state.name.trim(),
     price: r.price,
     resale: r.resale,
+    altCost: state.altCost > 0 ? state.altCost : 0,
+    altShare: state.altShare,
     categoryId: cat.id,
     lifespanMonths: state.lifespanMonths,
     frequency: state.frequency,

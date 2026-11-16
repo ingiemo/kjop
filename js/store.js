@@ -106,6 +106,8 @@ function cleanItem(it) {
     name: str(it.name, 200),
     price,
     resale: Math.max(0, numOr(it.resale, 0)),
+    altCost: Math.max(0, numOr(it.altCost, 0)),     // alternativkost per gang (f.eks. buss)
+    altShare: [1, 0.75, 0.5, 0.25].includes(Number(it.altShare)) ? Number(it.altShare) : 1,
     categoryId: str(it.categoryId, 64) || 'annet',
     lifespanMonths: Math.min(120, Math.max(0, Math.round(numOr(it.lifespanMonths, 24)))),
     frequency: FREQ[it.frequency] ? it.frequency : 'weekly',
