@@ -154,6 +154,16 @@ input { font: inherit; color: inherit; }
 }
 .num-input input::placeholder { color: var(--muted); font-weight: 400; }
 
+.date-input {
+  -webkit-appearance: none; appearance: none;
+  min-height: 46px; padding: 0 12px;
+  border: 0; border-radius: 12px;
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 16px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.date-input:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+
 .primary {
   display: block; width: 100%;
   min-height: 58px; margin-top: 20px;

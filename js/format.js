@@ -5,6 +5,7 @@ const nf0 = new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 0 });
 const nf1 = new Intl.NumberFormat('nb-NO', { maximumFractionDigits: 1 });
 const nf2 = new Intl.NumberFormat('nb-NO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dfLong = new Intl.DateTimeFormat('nb-NO', { day: 'numeric', month: 'long', year: 'numeric' });
+const dfMonth = new Intl.DateTimeFormat('nb-NO', { month: 'short', year: 'numeric' });
 
 /** 1234 -> «1 234 kr». Under 10 kr vises med øre: «3,50 kr». */
 export function kr(n) {
@@ -48,6 +49,28 @@ export function formatInput(n) {
 
 export function dateLong(d) {
   return dfLong.format(d);
+}
+
+/** ISO-dato -> «mar. 2026». Tom tekst hvis datoen mangler eller er ugyldig. */
+export function monthShort(iso) {
+  const d = new Date(iso);
+  return iso && Number.isFinite(d.getTime()) ? dfMonth.format(d) : '';
+}
+
+/** ISO-dato -> «2026-03-14» i lokal tid (verdien et <input type="date"> vil ha). */
+export function toDateInput(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (!Number.isFinite(d.getTime())) return '';
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** «2026-03-14» -> ISO-dato kl. 12 lokal tid, så tidssoner ikke flytter dagen. null hvis ugyldig. */
+export function fromDateInput(s) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  if (!m) return null;
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
+  return Number.isFinite(d.getTime()) && d.getDate() === Number(m[3]) ? d.toISOString() : null;
 }
 
 /** 26 -> «2 år og 2 mnd» */

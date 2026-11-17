@@ -2,7 +2,7 @@
 
 import { store } from '../store.js';
 import { evaluate, FREQ, VERDICT, actualCpu, altPerUse, ALT_SHARES } from '../calc.js';
-import { esc, kr, formatInput, lifespanText } from '../format.js';
+import { esc, kr, formatInput, lifespanText, monthShort } from '../format.js';
 import { isDue, daysLeft, goalProgress } from '../stats.js';
 import { toast } from '../ui.js';
 
@@ -25,7 +25,8 @@ function statusTag(it) {
     const d = daysLeft(it, wd);
     return `<span class="tag">Venter · ${d} ${d === 1 ? 'dag' : 'dager'}</span>`;
   }
-  return `<span class="tag tag--${key}">${STATUS_LABEL[key]}</span>`;
+  const month = it.status === 'bought' ? monthShort(it.decidedAt) : '';
+  return `<span class="tag tag--${key}">${STATUS_LABEL[key]}${month ? ` · ${esc(month)}` : ''}</span>`;
 }
 
 /** En rad i en liste. `data-id` brukes til å åpne/plukke. Med `plus` får kjøpte ting en +1-knapp. */

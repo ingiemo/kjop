@@ -2,7 +2,7 @@
 
 import { store } from '../store.js';
 import { evaluate, FREQ, VERDICT, expectedUsesSoFar, actualCpu, altPerUse } from '../calc.js';
-import { esc, kr, num, parseNum, formatTyping, formatInput } from '../format.js';
+import { esc, kr, num, parseNum, formatTyping, formatInput, toDateInput, fromDateInput } from '../format.js';
 import { openSheet, closeSheet, toast } from '../ui.js';
 import { addDays } from '../stats.js';
 import { STATUS_LABEL, statusKey, lifeOptions, freqOptions, categoryOptions, shareOptions, displayName } from './shared.js';
@@ -65,6 +65,9 @@ export function openItemEditor(item) {
       <label class="row-field"><span>Alternativet koster<small>Per gang</small></span>
         <span class="num-input"><input id="e-alt" inputmode="decimal" placeholder="0" value="${formatInput(item.altCost)}" autocomplete="off"><span>kr</span></span></label>
       <label class="row-field"><span>Erstatter det</span><select id="e-share" class="select">${shareOptions(item.altShare ?? 1)}</select></label>
+      ${item.status === 'bought' ? `
+      <label class="row-field"><span>Kjøpt</span>
+        <input id="e-date" type="date" class="date-input" value="${toDateInput(item.decidedAt || item.createdAt)}" max="${toDateInput()}"></label>` : ''}
     </div>
 
     <h3 class="section-title">Status</h3>
@@ -137,9 +140,17 @@ export function openItemEditor(item) {
         if (!(f.price > 0)) { toast('Prisen må være over 0 kr'); return; }
         const status = key === 'treat' ? 'bought' : key;
         let { decidedAt, waitUntil } = item;
-        if (key !== startKey) {
+        // Kjøpt ↔ Unnet er samme kjøp, så datoen beholdes.
+        if (status !== item.status) {
           decidedAt = status === 'saved' ? null : new Date().toISOString();
           waitUntil = status === 'saved' ? addDays(store.settings.waitDays) : null;
+        }
+        const dateEl = $('#e-date');
+        if (dateEl && status === 'bought' && dateEl.value !== dateEl.defaultValue) {
+          const picked = fromDateInput(dateEl.value);
+          if (!picked) { toast('Velg en gyldig kjøpsdato'); return; }
+          if (dateEl.value > toDateInput()) { toast('Kjøpsdatoen kan ikke være fram i tid'); return; }
+          decidedAt = picked;
         }
         store.updateItem(item.id, { ...f, status, treat: key === 'treat', decidedAt, waitUntil });
         closeSheet();
