@@ -1,21 +1,27 @@
 // Sammenlign: to alternativer side om side, hvem gir lavest kostnad per bruk?
+// Regner med evaluate() fra calc.js, så alternativkost (f.eks. buss) teller med som i kalkulatoren.
 
 import { store } from '../store.js';
-import { totalUses } from '../calc.js';
+import { evaluate } from '../calc.js';
 import { esc, kr, parseNum, formatTyping, formatInput } from '../format.js';
 import { openSheet, closeSheet } from '../ui.js';
-import { lifeOptions, freqOptions, itemRow } from './shared.js';
+import { lifeOptions, freqOptions, shareOptions, itemRow } from './shared.js';
 
 let el;
-const blank = () => ({ name: '', price: 0, resale: 0, lifespanMonths: 24, frequency: 'weekly', times: 0 });
+const blank = () => ({ name: '', price: 0, resale: 0, lifespanMonths: 24, frequency: 'weekly', times: 0, altCost: 0, altShare: 1 });
 const opts = { a: blank(), b: blank() };
 
+// Sammenligningen trenger bare kostnad per bruk, ikke vurdering, så grensene er uten betydning.
+const NO_LIMITS = { buyBelow: 0, dropAbove: 0 };
+
+/** Samme regnestykke som kalkulatoren, inkludert alternativkost. */
 function cpuOf(o) {
   if (!(o.price > 0)) return null;
-  const net = o.price - Math.min(o.price, o.resale || 0);
-  const uses = totalUses(o);
-  return { cpu: net / uses, uses, net };
+  return evaluate(o, NO_LIMITS, null);
 }
+
+/** «12 kr» eller «Sparer 8 kr» når alternativet gjør kjøpet lønnsomt. */
+const cpuText = (cpu) => (cpu < 0 ? `Sparer ${kr(-cpu)}` : kr(cpu));
 
 function card(key) {
   return `
@@ -32,6 +38,9 @@ function card(key) {
         <label class="cmp-lbl">Ganger<input class="mini" data-k="times" inputmode="numeric" placeholder="1" autocomplete="off"></label>
         <label class="cmp-lbl">FINN kr<input class="mini" data-k="resale" inputmode="decimal" placeholder="0" autocomplete="off"></label>
       </div>
+      <label class="cmp-lbl">Alternativ kr<small class="cmp-sub">per gang, f.eks. buss</small>
+        <input class="mini" data-k="altCost" inputmode="decimal" placeholder="0" autocomplete="off"></label>
+      <label class="cmp-lbl" data-share hidden>Erstatter det<select class="select" data-k="altShare">${shareOptions(1)}</select></label>
       <div class="cmp-out" aria-live="polite"></div>
     </div>`;
 }
@@ -51,9 +60,9 @@ export function mount(root) {
     const key = input.closest('.cmp-card').id.slice(4);
     const k = input.dataset.k;
     const o = opts[key];
-    if (k === 'price' || k === 'resale') { input.value = formatTyping(input.value); o[k] = parseNum(input.value); }
+    if (k === 'price' || k === 'resale' || k === 'altCost') { input.value = formatTyping(input.value); o[k] = parseNum(input.value); }
     else if (k === 'times') { input.value = input.value.replace(/\D/g, '').replace(/^0+/, '').slice(0, 4); o.times = Number(input.value) || 0; }
-    else if (k === 'lifespanMonths') o.lifespanMonths = Number(input.value);
+    else if (k === 'lifespanMonths' || k === 'altShare') o[k] = Number(input.value);
     else o[k] = input.value;
     render();
   });
@@ -80,6 +89,8 @@ function fill(key) {
   c.querySelector('[data-k=times]').value = o.times || '';
   c.querySelector('[data-k=lifespanMonths]').value = String(o.lifespanMonths);
   c.querySelector('[data-k=frequency]').value = o.frequency;
+  c.querySelector('[data-k=altCost]').value = formatInput(o.altCost);
+  c.querySelector('[data-k=altShare]').value = String(o.altShare);
 }
 
 function pickFromSaved(key) {
@@ -100,6 +111,7 @@ function pickFromSaved(key) {
           name: it.name || store.category(it.categoryId).name,
           price: it.price, resale: it.resale || 0,
           lifespanMonths: it.lifespanMonths, frequency: it.frequency, times: it.times || 0,
+          altCost: it.altCost || 0, altShare: it.altShare ?? 1,
         };
         fill(key);
         render();
@@ -112,10 +124,13 @@ function pickFromSaved(key) {
 function render() {
   const res = { a: cpuOf(opts.a), b: cpuOf(opts.b) };
   for (const key of ['a', 'b']) {
-    const out = el.querySelector(`#cmp-${key} .cmp-out`);
+    const c = el.querySelector(`#cmp-${key}`);
+    c.querySelector('[data-share]').hidden = !(opts[key].altCost > 0);
+    const out = c.querySelector('.cmp-out');
     const r = res[key];
     out.innerHTML = r
-      ? `<b>${kr(r.cpu)}</b><small>per bruk · ${Math.round(r.uses).toLocaleString('nb-NO')} bruk</small>`
+      ? `<b>${cpuText(r.cpu)}</b><small>per bruk · ${Math.round(r.uses).toLocaleString('nb-NO')} bruk</small>${
+        r.alt > 0 ? `<small class="cmp-gross">${kr(r.grossCpu)} før alternativet</small>` : ''}`
       : '<small>Legg inn pris</small>';
   }
 
@@ -137,7 +152,8 @@ function render() {
   const win = res.a.cpu < res.b.cpu ? 'a' : 'b';
   const lose = win === 'a' ? 'b' : 'a';
   (win === 'a' ? ca : cb).classList.add('is-winner');
-  const pct = Math.round((diff / res[lose].cpu) * 100);
+  // Prosent gir bare mening når begge koster noe per bruk.
+  const pct = res[win].cpu >= 0 ? Math.round((diff / res[lose].cpu) * 100) : null;
   const priceDiff = opts[win].price - opts[lose].price;
   const priceText = priceDiff > 0
     ? `${label(win)} koster ${kr(priceDiff)} mer i kjøp, men lønner seg over tid.`
@@ -148,6 +164,8 @@ function render() {
   box.innerHTML = `
     <span class="eyebrow">Lavest per bruk</span>
     <p class="cmp-verdict">${label(win)}</p>
-    <p class="cmp-diff"><b>${kr(diff)}</b> mindre per bruk (${pct} % billigere)</p>
+    <p class="cmp-diff">${pct != null
+      ? `<b>${kr(diff)}</b> mindre per bruk (${pct} % billigere)`
+      : `<b>${kr(diff)}</b> bedre per bruk`}</p>
     <p class="muted" style="margin:6px 0 0">${priceText}</p>`;
 }
