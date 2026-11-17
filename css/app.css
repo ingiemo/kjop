@@ -438,6 +438,8 @@ input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; border-radius
 .mini-name small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
 .mini-val { font-variant-numeric: tabular-nums; font-weight: 600; }
 .mini-more { margin: 0; padding: 10px 0; border-top: 1px solid var(--border); font-size: 14px; }
+.mini-note { margin: 0; padding: 10px 0 8px; font-size: 14px; }
+.due .mini-more { margin-top: 10px; }
 .chev { color: var(--muted); font-size: 22px; }
 
 /* ---------- Sammenlign ---------- */

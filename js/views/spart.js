@@ -3,7 +3,7 @@
 import { store } from '../store.js';
 import { esc, kr, num, hoursText, workdayText } from '../format.js';
 import { actualCpu, altPerUse } from '../calc.js';
-import { split, sumPrice, periodStart, savedPerMonth, treatUsedThisMonth, monthName, goalProgress } from '../stats.js';
+import { split, sumPrice, periodStart, savedPerMonth, treatUsedThisMonth, monthName, goalProgress, unusedItems } from '../stats.js';
 import { displayName, evalItem } from './shared.js';
 import { openItemEditor } from './itemform.js';
 
@@ -94,13 +94,14 @@ export function mount(root) {
 
 export function show() { render(); }
 
-function miniList(title, list) {
+function miniList(title, list, note = '') {
   if (!list.length) return '';
-  const sorted = [...list].sort((a, b) => b.decidedAt.localeCompare(a.decidedAt));
+  const sorted = [...list].sort((a, b) => (b.decidedAt || '').localeCompare(a.decidedAt || ''));
   const shown = sorted.slice(0, 8);
   return `
     <h3 class="section-title">${title}</h3>
     <div class="card card--list">
+      ${note ? `<p class="muted mini-note">${note}</p>` : ''}
       ${shown.map((it) => {
         const cat = store.category(it.categoryId);
         return `<button type="button" class="mini-row" data-id="${esc(it.id)}">
@@ -110,6 +111,17 @@ function miniList(title, list) {
       }).join('')}
       ${sorted.length > shown.length ? `<p class="muted mini-more">+ ${sorted.length - shown.length} til</p>` : ''}
     </div>`;
+}
+
+/** Kjøp du ikke bruker. Gjelder alt, uavhengig av valgt periode. */
+function unusedList() {
+  const list = unusedItems(store.items);
+  if (!list.length) return '';
+  const resale = list.reduce((s, i) => s + (i.resale || 0), 0);
+  const note = resale > 0
+    ? `Til sammen ${kr(resale)} i anslått FINN-verdi`
+    : 'Kjøpt, men ikke brukt på en stund';
+  return miniList('Ikke i bruk', list, note);
 }
 
 function render() {
@@ -197,6 +209,7 @@ function render() {
 
     ${insights()}
     ${store.settings.goal ? '' : '<p class="muted" style="font-size:14px;text-align:center;margin:16px 0 0">Sparer du til noe? <a href="#innstillinger">Sett et sparemål</a></p>'}
+    ${unusedList()}
     ${miniList('Droppet', dropped)}
     ${miniList('Kjøpt', [...bought, ...treats])}`;
 }

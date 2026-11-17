@@ -139,11 +139,13 @@ export function openItemEditor(item) {
         const f = read();
         if (!(f.price > 0)) { toast('Prisen må være over 0 kr'); return; }
         const status = key === 'treat' ? 'bought' : key;
-        let { decidedAt, waitUntil } = item;
-        // Kjøpt ↔ Unnet er samme kjøp, så datoen beholdes.
+        let { decidedAt, waitUntil, stillUsing, followUpAt } = item;
+        // Kjøpt ↔ Unnet er samme kjøp, så datoen og oppfølgingen beholdes.
         if (status !== item.status) {
           decidedAt = status === 'saved' ? null : new Date().toISOString();
           waitUntil = status === 'saved' ? addDays(store.settings.waitDays) : null;
+          stillUsing = null;
+          followUpAt = null;
         }
         const dateEl = $('#e-date');
         if (dateEl && status === 'bought' && dateEl.value !== dateEl.defaultValue) {
@@ -152,7 +154,7 @@ export function openItemEditor(item) {
           if (dateEl.value > toDateInput()) { toast('Kjøpsdatoen kan ikke være fram i tid'); return; }
           decidedAt = picked;
         }
-        store.updateItem(item.id, { ...f, status, treat: key === 'treat', decidedAt, waitUntil });
+        store.updateItem(item.id, { ...f, status, treat: key === 'treat', decidedAt, waitUntil, stillUsing, followUpAt });
         closeSheet();
         toast('Lagret');
       });

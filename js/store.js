@@ -123,6 +123,8 @@ function cleanItem(it) {
     waited: it.waited === true,                  // avgjort etter at tenketiden var over
     actualUses: Math.max(0, Math.round(numOr(it.actualUses, 0))), // registrert bruk
     lastUsedAt: isoOrNull(it.lastUsedAt),
+    stillUsing: ['yes', 'sometimes', 'no'].includes(it.stillUsing) ? it.stillUsing : null, // svar på oppfølging
+    followUpAt: isoOrNull(it.followUpAt),        // neste gang appen spør
   };
 }
 
@@ -194,6 +196,8 @@ export const store = {
         ...it,
         actualUses: Math.max(0, (it.actualUses || 0) + delta),
         lastUsedAt: delta > 0 ? new Date().toISOString() : it.lastUsedAt,
+        // Bruker du den igjen, er «bruker den ikke» ikke lenger sant.
+        stillUsing: delta > 0 && it.stillUsing === 'no' ? null : it.stillUsing,
       };
       return out;
     });

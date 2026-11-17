@@ -93,3 +93,45 @@ export function exportReminderDue(items, settings, now = new Date()) {
   const snoozed = settings.exportSnoozedUntil ? new Date(settings.exportSnoozedUntil) : null;
   return !snoozed || snoozed <= now;
 }
+
+// ---------- Oppfølging etter kjøp ----------
+
+// Dager etter kjøpet (eller forrige svar) før appen spør «bruker du den fortsatt?».
+// Ting du bruker sjelden får lengre tid, ellers spør den før du har rukket å bruke dem.
+const FOLLOW_UP_DAYS = { daily: 90, weekly: 90, monthly: 90, yearly: 365 };
+// Hvor lenge siden siste registrerte bruk før tingen regnes som «ikke i bruk».
+const UNUSED_DAYS = { daily: 60, weekly: 60, monthly: 90, yearly: 400 };
+// Har du trykket +1 nylig, vet appen svaret og spør ikke.
+const RECENT_USE_DAYS = 30;
+
+const tracked = (it) => it.status === 'bought' && it.frequency !== 'once';
+
+export function followUpAt(it) {
+  if (it.followUpAt) return new Date(it.followUpAt);
+  const from = new Date(it.decidedAt || it.createdAt).getTime();
+  return new Date(from + (FOLLOW_UP_DAYS[it.frequency] || 90) * DAY);
+}
+
+export function needsFollowUp(it, now = new Date()) {
+  if (!tracked(it) || it.stillUsing === 'no') return false;
+  if (it.lastUsedAt && now - new Date(it.lastUsedAt) < RECENT_USE_DAYS * DAY) return false;
+  return followUpAt(it) <= now;
+}
+
+/** Kjøp som venter på svar, de som har ventet lengst først. */
+export const followUpItems = (items, now = new Date()) =>
+  items.filter((i) => needsFollowUp(i, now)).sort((a, b) => followUpAt(a) - followUpAt(b));
+
+/** Neste gang appen skal spørre etter et svar (ISO). «no» spør ikke igjen. */
+export function nextFollowUp(it, answer, now = new Date()) {
+  if (answer === 'no') return null;
+  const days = it.frequency === 'yearly' ? 365 : answer === 'yes' ? 180 : 90;
+  return addDays(days, now);
+}
+
+/** Kjøpt, men ikke i bruk: du har svart nei, eller registrert bruk har stoppet opp. */
+export function unusedItems(items, now = new Date()) {
+  return items.filter((i) => tracked(i) && (i.stillUsing === 'no'
+    || (i.actualUses > 0 && i.lastUsedAt
+      && now - new Date(i.lastUsedAt) >= (UNUSED_DAYS[i.frequency] || 60) * DAY)));
+}

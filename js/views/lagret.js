@@ -1,9 +1,10 @@
 // Lagret: alle registrerte ting, søk og filter på vurdering, sortert på kostnad per bruk.
-// Øverst: ting som er ferdige med tenketiden. Kjøpte ting har +1 for faktisk bruk.
+// Øverst: ting som er ferdige med tenketiden, og kjøp som er klare for «bruker du den fortsatt?».
+// Kjøpte ting har +1 for faktisk bruk.
 
 import { store } from '../store.js';
-import { esc, kr } from '../format.js';
-import { dueItems, addDays } from '../stats.js';
+import { esc, kr, monthShort } from '../format.js';
+import { dueItems, addDays, followUpItems, nextFollowUp } from '../stats.js';
 import { toast } from '../ui.js';
 import { evalItem, itemRow, displayName, registerUse, droppedToast } from './shared.js';
 import { openItemEditor } from './itemform.js';
@@ -19,6 +20,7 @@ export function mount(root) {
   el.innerHTML = `
     <h1 class="page-title">Lagret</h1>
     <div id="l-due"></div>
+    <div id="l-follow"></div>
     <input type="search" id="l-q" class="field search" placeholder="Søk" autocomplete="off" enterkeyhint="search" aria-label="Søk i lagrede ting">
     <div class="chips" id="l-filter" role="radiogroup" aria-label="Filtrer på vurdering"></div>
     <div id="l-list" class="list"></div>`;
@@ -35,6 +37,8 @@ export function mount(root) {
     if (use) { registerUse(use.dataset.use); return; }
     const due = e.target.closest('[data-due]');
     if (due) { decide(due.closest('[data-item]').dataset.item, due.dataset.due); return; }
+    const ans = e.target.closest('[data-answer]');
+    if (ans) { answer(ans.closest('[data-item]').dataset.item, ans.dataset.answer); return; }
     const row = e.target.closest('.item');
     const it = row && store.items.find((i) => i.id === row.dataset.id);
     if (it) openItemEditor(it);
@@ -59,6 +63,52 @@ function decide(id, action) {
     store.updateItem(id, { status: 'dropped', decidedAt: now, waited: true });
     droppedToast(it.price, 'Droppet etter tenketid!');
   }
+}
+
+/** Svar på «bruker du den fortsatt?». */
+function answer(id, value) {
+  const it = store.items.find((i) => i.id === id);
+  if (!it) return;
+  store.updateItem(id, { stillUsing: value, followUpAt: nextFollowUp(it, value) });
+  if (value === 'yes') toast('Så bra! 👏');
+  else if (value === 'sometimes') toast('Notert. Jeg spør igjen om en stund');
+  else toast(it.resale > 0
+    ? `Kanskje noe for FINN? Du anslo ${kr(it.resale)}`
+    : 'Notert. Du finner den under «Ikke i bruk» i Spart');
+}
+
+const MAX_FOLLOW_UPS = 3; // ikke la en lang liste drukne resten av fanen
+
+function renderFollowUp() {
+  const list = followUpItems(store.items);
+  const box = el.querySelector('#l-follow');
+  if (!list.length) { box.innerHTML = ''; return; }
+  const shown = list.slice(0, MAX_FOLLOW_UPS);
+  box.innerHTML = `
+    <div class="card due">
+      <span class="label">Oppfølging</span>
+      <p class="hint" style="margin:2px 0 4px">Bruker du ${shown.length === 1 ? 'denne' : 'disse'} fortsatt?</p>
+      ${shown.map((it) => {
+        const cat = store.category(it.categoryId);
+        const n = it.actualUses || 0;
+        const month = monthShort(it.decidedAt || it.createdAt);
+        return `
+          <div class="due-item" data-item="${esc(it.id)}">
+            <div class="due-top">
+              <span aria-hidden="true">${esc(cat.emoji)}</span>
+              <b>${esc(displayName(it, cat))}</b>
+              <span class="mini-val">${kr(it.price)}</span>
+            </div>
+            <small class="muted">${esc(`Kjøpt ${month} · ${n ? `${n}× brukt` : 'ingen bruk registrert'}`)}</small>
+            <div class="due-actions">
+              <button type="button" class="btn" data-answer="yes">Ja</button>
+              <button type="button" class="btn" data-answer="sometimes">Av og til</button>
+              <button type="button" class="btn" data-answer="no">Nei</button>
+            </div>
+          </div>`;
+      }).join('')}
+      ${list.length > shown.length ? `<p class="muted mini-more">+ ${list.length - shown.length} til etter disse</p>` : ''}
+    </div>`;
 }
 
 function renderDue() {
@@ -92,6 +142,7 @@ function renderDue() {
 
 function render() {
   renderDue();
+  renderFollowUp();
   const all = store.items.map((it) => ({ it, ...evalItem(it) }));
   const searched = all.filter(({ it, cat }) => !query
     || displayName(it, cat).toLowerCase().includes(query)
